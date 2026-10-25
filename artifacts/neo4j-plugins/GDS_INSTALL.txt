@@ -1,0 +1,44 @@
+Neo4j Graph Data Science（GDS）2.7.0 — 与 Neo4j 5.15 兼容（官方矩阵：5.15 对应 GDS 2.7 / 2.6）。
+
+## 1. 插件 JAR 位置（已下载到本仓库）
+
+完整文件（约 55.6 MB）：
+
+  e:\crypo-side\artifacts\neo4j-plugins\neo4j-graph-data-science-2.7.0.jar
+
+官方下载页（可自行校验）：
+
+  https://github.com/neo4j/graph-data-science/releases/tag/2.7.0
+
+## 2. 安装步骤
+
+1. **停止 Neo4j**（若正在运行，否则可能无法覆盖 plugins 下的文件）。
+2. **复制 JAR** 到 Neo4j 的 `plugins` 目录，例如你当前安装为：
+
+   D:\neo4j-community-5.15.0\plugins\neo4j-graph-data-science-2.7.0.jar
+
+   PowerShell 示例：
+
+   Copy-Item -Force "e:\crypo-side\artifacts\neo4j-plugins\neo4j-graph-data-science-2.7.0.jar" "D:\neo4j-community-5.15.0\plugins\"
+
+3. **编辑** `D:\neo4j-community-5.15.0\conf\neo4j.conf`，在文件末尾（或 procedures 注释块附近）**取消注释或新增**如下行（开发环境常用；生产请按需收紧）：
+
+   dbms.security.procedures.unrestricted=gds.*
+
+   若你使用了 allowlist（白名单），需包含 gds，例如：
+
+   dbms.security.procedures.allowlist=gds.*
+
+4. **启动 Neo4j**，在 Browser 或 cypher-shell 中执行：
+
+   RETURN gds.version();
+
+   若能返回版本号，说明加载成功。
+
+5. 回到本项目重新计算图特征：
+
+   python scripts/neo4j_apply.py graph_features
+
+## 3. 若复制到 D:\ 被拒绝
+
+以管理员打开 PowerShell，或先退出 Neo4j 再复制。

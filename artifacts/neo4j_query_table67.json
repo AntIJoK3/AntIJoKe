@@ -1,0 +1,40 @@
+{
+  "meta": {
+    "full_graph": {
+      "nodes": 516,
+      "edges": 1842
+    },
+    "extended_graph": {
+      "nodes": 1032,
+      "edges": 1612
+    },
+    "largest_community_full": 243,
+    "largest_community_ext": 243,
+    "samples_per_query": 10,
+    "repeats": 30,
+    "warmup": 3
+  },
+  "rows": [
+    {
+      "query": "子图导出（1-hop）",
+      "key": "subgraph_1hop",
+      "full_mean_ms": 862.0694366652364,
+      "ext_mean_ms": 784.2058733280282,
+      "growth_pct": -9.03216841075002
+    },
+    {
+      "query": "社区查询（大型社区）",
+      "key": "community_large",
+      "full_mean_ms": 5.943736664873238,
+      "ext_mean_ms": 3.4335133347970745,
+      "growth_pct": -42.23308453268595
+    },
+    {
+      "query": "多跳关联（2-hop）",
+      "key": "two_hop",
+      "full_mean_ms": 18.304043334986392,
+      "ext_mean_ms": 23.822536670680467,
+      "growth_pct": 30.14903993996787
+    }
+  ]
+}

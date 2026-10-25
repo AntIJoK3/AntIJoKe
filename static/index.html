@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Crypo-Side — 欺诈网站图检测</title>
+    <link rel="stylesheet" href="css/app.css" />
+    <script
+      src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"
+      crossorigin="anonymous"
+    ></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/ui/">
+        <span class="brand-icon">CS</span>
+        <span>
+          <span class="brand-text">Crypo-Side</span>
+          <span class="brand-sub">图神经网络欺诈检测</span>
+        </span>
+      </a>
+      <nav class="header-nav">
+        <a href="/docs" target="_blank" rel="noopener">API 文档</a>
+        <a href="/health" target="_blank" rel="noopener">健康检查</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <div class="hero-inner">
+        <h1>分析 URL 或域名</h1>
+        <p>基于知识图谱与 GraphSAGE（SAGEConv 图卷积）评估欺诈风险；支持输入域名探索关联子图，点击节点可钻取分析。</p>
+        <div class="search-row" id="search-row">
+          <input
+            id="url-input"
+            type="text"
+            placeholder="例如 https://example.com 或 suspicious-site.com"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button type="button" id="scan-btn">分析</button>
+        </div>
+        <p class="search-hint">扫描将调用后端 <code>/predict</code>，关系图来自 <code>/graph</code>，无需在浏览器填写 Neo4j 密码。</p>
+      </div>
+    </section>
+
+    <main class="main">
+      <div id="alert-box" class="alert error hidden" role="alert"></div>
+
+      <div id="empty-state" class="empty-state">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="11" cy="11" r="8" />
+          <path d="M21 21l-4.35-4.35" />
+        </svg>
+        <p>在上方输入 URL 并点击「分析」查看风险评分与关联图</p>
+        <div class="graph-explore-card">
+          <h2>关系图探索</h2>
+          <p class="graph-explore-hint">仅加载 Neo4j 子图，不调用欺诈评分</p>
+          <div class="graph-explore-row">
+            <input
+              id="graph-domain-input"
+              type="text"
+              placeholder="输入域名，例如 suspicious-site.com"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button type="button" id="graph-load-btn">加载子图</button>
+          </div>
+        </div>
+      </div>
+
+      <section id="result-section" class="hidden">
+        <article class="result-card">
+          <div class="result-top">
+            <div class="verdict-ring" id="verdict-ring" aria-hidden="true">
+              <svg viewBox="0 0 100 100">
+                <circle class="track" cx="50" cy="50" r="42" />
+                <circle class="fill" cx="50" cy="50" r="42" />
+              </svg>
+              <div class="verdict-value">
+                <span class="pct" id="verdict-pct">—</span>
+                <span class="lbl">风险指数</span>
+              </div>
+            </div>
+            <div class="result-url">
+              <div class="domain" id="result-domain">—</div>
+              <div class="full-url" id="result-full-url">—</div>
+            </div>
+            <div id="verdict-badge" class="verdict-badge safe">—</div>
+          </div>
+          <div class="stats-row">
+            <div class="stat-cell">
+              <span class="val" id="stat-prob">—</span>
+              <span class="key">欺诈概率</span>
+            </div>
+            <div class="stat-cell">
+              <span class="val" id="stat-mode">—</span>
+              <span class="key">检测引擎</span>
+            </div>
+            <div class="stat-cell">
+              <span class="val" id="stat-neighbors">—</span>
+              <span class="key">欺诈邻居数</span>
+            </div>
+            <div class="stat-cell">
+              <span class="val" id="stat-community">—</span>
+              <span class="key">Louvain 社区</span>
+            </div>
+          </div>
+        </article>
+
+        <div class="tabs" role="tablist">
+          <button type="button" class="tab-btn active" data-tab="graph" role="tab">关系图</button>
+          <button type="button" class="tab-btn" data-tab="details" role="tab">详情</button>
+          <button type="button" class="tab-btn" data-tab="json" role="tab">原始 JSON</button>
+        </div>
+
+        <div id="panel-graph" class="tab-panel active" role="tabpanel">
+          <div class="graph-toolbar">
+            <div class="graph-toolbar-left">
+              <input
+                id="graph-domain-input-inline"
+                type="text"
+                placeholder="域名 / URL"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <button type="button" id="graph-load-btn-inline">加载子图</button>
+              <button type="button" id="graph-drill-back" class="hidden" title="返回上一级子图">← 上一级</button>
+            </div>
+            <span id="graph-status">等待分析…</span>
+            <button type="button" id="graph-refresh">刷新</button>
+          </div>
+          <nav id="graph-breadcrumb" class="graph-breadcrumb hidden" aria-label="钻取路径"></nav>
+          <p id="graph-hint" class="graph-hint">悬停节点查看属性 · 单击节点以该节点为中心重新加载子图（关联钻取）</p>
+          <div id="graph-viz"></div>
+          <aside id="graph-node-detail" class="graph-node-detail hidden" aria-live="polite"></aside>
+        </div>
+
+        <div id="panel-details" class="tab-panel" role="tabpanel">
+          <div class="details-grid">
+            <div class="detail-block">
+              <h3>检测摘要</h3>
+              <dl>
+                <dt>检测引擎</dt>
+                <dd id="detail-mode">—</dd>
+                <dt>模型结构</dt>
+                <dd>GraphSAGE · PyG <code>SAGEConv</code>（对邻居特征做图卷积聚合）</dd>
+                <dt>欺诈概率</dt>
+                <dd id="detail-prob">—</dd>
+                <dt>团伙 / 社区提示</dt>
+                <dd id="detail-gang">—</dd>
+              </dl>
+            </div>
+            <div class="detail-block">
+              <h3>目标资源</h3>
+              <dl>
+                <dt>规范化 URL</dt>
+                <dd id="detail-url">—</dd>
+              </dl>
+            </div>
+            <div class="detail-block">
+              <h3>图例说明</h3>
+              <dl>
+                <dt>节点颜色</dt>
+                <dd>绿 = 低风险 · 橙 = 可疑 · 红 = 高风险 · 灰 = 未评分</dd>
+                <dt>边类型</dt>
+                <dd>HAS_IP、SHARED_IP、CONTENT_SIMILAR 等基础设施与内容关联</dd>
+                <dt>交互</dt>
+                <dd>悬停查看属性；单击节点钻取；工具栏可输入域名直接加载子图</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+
+        <div id="panel-json" class="tab-panel" role="tabpanel">
+          <div class="json-panel">
+            <pre id="json-output">{}</pre>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      crypo-side v0.1 · Neo4j + GraphSAGE ·
+      <a href="/docs">Swagger</a>
+    </footer>
+
+    <script src="js/app.js"></script>
+  </body>
+</html>

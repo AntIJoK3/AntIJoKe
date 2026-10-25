@@ -1,0 +1,50 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- 虚拟环境 ----
+.venv/
+venv/
+ENV/
+
+# ---- 密钥与本地配置 ----
+.env
+.env.local
+*.key
+*.pem
+
+# ---- 模型权重与大型二进制 ----
+# all-MiniLM-L6-v2 由 sentence-transformers 按需自动下载，不入库
+artifacts/models/
+*.safetensors
+*.bin
+*.onnx
+
+# 训练好的 GraphSAGE 权重由使用者自行训练生成，不入库
+artifacts/graphsage.pt
+*.pt
+*.pth
+*.ckpt
+
+# ---- 数据（按需保留，当前 500 条样本已提交）----
+# 若要扩充数据集，取消下面一行注释以忽略新的 parquet
+# urls_with_dns_live_mixed/parts/*.parquet
+
+# ---- Neo4j ----
+data/databases/
+data/transactions/
+logs/
+*.log
+
+# ---- 编辑器 / 操作系统 ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

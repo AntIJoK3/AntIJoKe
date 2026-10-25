@@ -1,0 +1,68 @@
+crypo-side 项目大纲
+==================
+
+（项目名在 pyproject.toml 中为 crypo-side，描述为 Fraud website graph detection prototype：基于图与 GNN 的欺诈网站检测原型。）
+
+一、项目定位
+------------
+- 目标：把 URL / 站点当作图上的节点，结合 Neo4j 图结构、文本嵌入与 GraphSAGE（PyTorch Geometric），输出欺诈概率；并提供 FastAPI 做在线预测与简单子图导出。
+- 技术栈：Neo4j（可选 Neo4j GDS）、Python 3.10+、PyG、sentence-transformers、httpx/BeautifulSoup、Parquet（DeepURLBench 风格列：url, label, ip_address）。
+
+二、顶层结构
+------------
+- crypo_side/          核心 Python 包
+- scripts/             命令行流水线：导入、Cypher、训练、清库等
+- resources/cypher/    Neo4j 步骤脚本：约束/索引、同构投影、内容相似边、GDS 特征、feat_vector 拼接等
+- artifacts/           模型权重（如 graphsage.pt）、Neo4j GDS 插件说明等
+- static/（若存在）    可选前端，API 挂载在 /ui/
+- pyproject.toml / requirements.txt   包元数据与依赖
+
+配置通过 .env + pydantic-settings（crypo_side/config.py）：Neo4j 连接、Parquet 目录、嵌入模型与维度、checkpoint 路径、同构边类型 GRAPH_WEBSITE_HOMOG_EDGES 等。
+
+三、包内模块大纲（crypo_side/）
+------------------------------
+
+3.1 基础设施
+- config.py：全局 Settings（Neo4j URI/账号、DeepURL Parquet 目录、向量索引名、嵌入模型、gnn_checkpoint、graph_website_homog_edges 等）。
+- db.py：make_driver()、session_scope()，封装 Neo4j 驱动。
+
+3.2 数据采集与丰富化
+- collection/enrich.py：enrich_url(url) -> EnrichmentResult：规范化 URL、拉取首页（标题/可见文本）、DNS（A/AAAA/NS）、可选 WHOIS、SSL 证书指纹、简单 analytics 指纹等，供单条预测或可选 HTTP 批量增强。
+
+3.3 数据集
+- dataset/deepurl.py：DeepURLBench 风格 Parquet 的列校验、标签映射（phishing/malware/... -> fraud，benign/normal -> normal）、IP 规范化、按批迭代 iter_parquet_batches、rows_for_neo4j 供写入图。
+
+3.4 图建模与 Neo4j
+- graph/importer.py：merge_website_graph：MERGE Website 及 HAS_IP、USES_NS、REGISTERED_BY、HAS_ANALYTICS、HAS_CERT 等关系；set_text_embedding。
+- graph/bulk_ingest.py：批量合并与批量文本嵌入写入（被 ingest_parquet_dataset 使用）。
+- graph/cypher_runner.py：执行 resources/cypher 下的文件。
+- graph/feature_fallback.py：优先 GDS，失败则用 NetworkX 等回退，再跑特征拼接 Cypher（neo4j_apply graph_features）。
+- graph/rel_types.py：Website-Website 同构边类型字符串（默认 SHARED_IP|CONTENT_SIMILAR，可由环境变量扩展）。
+
+3.5 机器学习
+- ml/embeddings.py：基于 sentence-transformers 的文本向量。
+- ml/graphsage.py：FraudGraphSAGE 模型定义。
+- ml/pyg_data.py：从 Neo4j 拉全图或子图特征，构建 PyG Data。
+- ml/train.py：分层划分 train/val/test、训练 GraphSAGE、指标与保存 artifacts/graphsage.pt。
+
+3.6 API
+- api/main.py：FastAPI 应用：GET /、GET /health、POST /predict（丰富化 -> 写图 -> 嵌入 -> GNN 或启发式）、GET /graph?domain=...（子图 JSON）；可选 StaticFiles 挂载 /ui/。
+- api/infer.py：加载 checkpoint、子图推理、heuristic_fraud_score（无模型时按 fraud 邻居比例）、write_gnn_prob、export_subgraph。
+
+四、脚本流水线（scripts/）
+--------------------------
+- run_full_pipeline.py：可选 --wipe -> neo4j_apply schema -> ingest_parquet_dataset（除非 --skip-ingest）-> homog / similar / graph_features（除非 --skip-gds）-> python -m crypo_side.ml.train（除非 --skip-train）；末尾提示用 uvicorn 起 API。
+- neo4j_apply.py：子命令对应 01_schema、02_project_homogeneous、05_content_similar、graph_features（GDS 或回退 + 06_feat_vector_concat）等。
+- ingest_parquet_dataset.py：Parquet 流式分批导入 + 嵌入，可选 --http-enrich。
+- ingest_csv.py、wipe_graph.py、check_deps.py：辅助导入、清库、依赖检查。
+
+五、数据流（概念）
+----------------
+1. 离线：Parquet（或 CSV）-> Neo4j 节点/边 -> Cypher +（可选）GDS 生成结构/图特征 -> 与 text_embedding 拼成 feat_vector -> GraphSAGE 训练 -> artifacts/graphsage.pt。
+2. 在线：POST /predict -> enrich_url -> 合并到图 -> 文本嵌入 -> 以目标 URL 为中心的 1-hop 子图上跑 GNN；若无权重则启发式；结果写回 gnn_fraud_prob，并可选返回 Louvain / fraud 邻居提示。
+
+六、依赖与运行要点
+------------------
+- 需 Neo4j 及与 Cypher/GDS 版本匹配的插件（artifacts/neo4j-plugins 中有 GDS 安装说明类文件）。
+- 默认 Parquet 目录在配置里指向 urls_with_dns_live_mixed/parts（相对项目根；数据目录可能需自备）。
+- 启动 API：uvicorn crypo_side.api.main:app（与 main.py 文档字符串一致）。

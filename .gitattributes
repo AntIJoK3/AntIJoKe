@@ -1,0 +1,25 @@
+# 统一换行符，避免 Windows/Linux 协作时出现整文件 diff
+* text=auto eol=lf
+
+# 显式声明文本类型
+*.py    text eol=lf
+*.md    text eol=lf
+*.txt   text eol=lf
+*.cypher text eol=lf
+*.toml  text eol=lf
+*.html  text eol=lf
+*.css   text eol=lf
+*.js    text eol=lf
+*.json  text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+
+# 二进制文件不做换行转换
+*.jar       binary
+*.parquet   binary
+*.pt        binary
+*.safetensors binary
+
+# 语言统计
+*.py    linguist-language=Python
+*.cypher linguist-language=Cypher
